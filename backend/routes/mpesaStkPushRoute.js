@@ -1,7 +1,6 @@
 import express from 'express';
 import dotenv from 'dotenv';
 import expressAsyncHandler from 'express-async-handler';
-import MpesaPayments from '../models/mpesaPayment.js';
 import request from "request";
 import accessToken from "../middleware/generateAccessToken.js";
 import { isAuth } from '../utils.js';

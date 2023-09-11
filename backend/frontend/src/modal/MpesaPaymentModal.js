@@ -27,32 +27,70 @@ export default function MpesaPaymentModal({
   handleShow,
   handleCloseModal,
   amount,
+  id
 }) {
   const [phoneNumber, setPhoneNumber] = useState("");
+  const [paymentLoading, setPaymentLoading] = useState("");
 
   const { state } = useContext(Store);
   const { userInfo } = state;
-  const [{ loading, error, loadingPayment }, dispatch] = useReducer(reducer, {
+  const [{ loading, error }, dispatch] = useReducer(reducer, {
     loading: false,
     error: "",
   });
 
   const submitHandler = async (e) => {
     e.preventDefault();
-    console.log(phoneNumber, amount)
+    setPaymentLoading(true);
+    const delay = (ms) => new Promise(resolve => setTimeout(resolve, ms));
+
     try {
       dispatch({ type: "PAYMENT_REQUEST" });
       await axios.get(`/api/mpesa/simulate/${phoneNumber}/${amount}`, {
         headers: { Authorization: `Bearer ${userInfo.token}` },
-      });
-      dispatch({
-        type: "PAYMENT_SUCCESS",
-      });
-      toast.success("Payment made successfully");
-      handleCloseModal()
-    } catch (err) {
-      toast.error(getError(err));
+      }).then(async (response) => {
+        if (response.data.errorCode) {
+          toast.error(response.data.errorMessage);
+          setPaymentLoading(false);
+        }
+        else if (response.data.ResponseCode) {
+          await delay(15000);
+          try {
+            await axios.get(`/api/mpesa/query/${response.data.CheckoutRequestID}`, {
+              headers: { Authorization: `Bearer ${userInfo.token}` },
+            }).then(async (response) => {
+              if (response.data.ResultCode === "0") {
+                const paymentResult = response
+                const { data } = await axios.put(`/api/orders/${id}/pay`,
+                  paymentResult, {
+                  headers: { authorization: `Bearer ${userInfo.token}` },
+                });
+                dispatch({ type: 'PAY_SUCCESS', payload: data });
+                handleCloseModal();
+                setPaymentLoading(false);
+                setTimeout(() =>
+                  window.location.reload()
+                  , [800]);
+              }
+              else {
+                toast.error("Payment wasn't processed successfully please try again");
+                dispatch({ type: "PAYMENT_FAIL" });
+                setPaymentLoading(false);
+              }
+            })
+          } catch (error) {
+            toast.error(getError(error));
+            dispatch({ type: "PAYMENT_FAIL" });
+            setPaymentLoading(false);
+          }
+
+        }
+      })
+
+    } catch (error) {
+      toast.error(getError(error));
       dispatch({ type: "PAYMENT_FAIL" });
+      setPaymentLoading(false);
     }
   };
 
@@ -87,10 +125,13 @@ export default function MpesaPaymentModal({
             </Form>
           </Modal.Body>
           <Modal.Footer>
-            <Button disabled={loadingPayment} variant="dark" size="lg" onClick={submitHandler}>
-              Pay
-            </Button>
-            {loadingPayment && <LoadingBox></LoadingBox>}
+            {paymentLoading ? (
+              <LoadingBox />
+            ) : (
+              <Button disabled={paymentLoading} variant="dark" size="lg" onClick={submitHandler}>
+                Pay
+              </Button>
+            )}
           </Modal.Footer>
         </Modal>
       )}

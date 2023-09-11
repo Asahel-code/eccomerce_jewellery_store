@@ -12,7 +12,7 @@ import { Link } from 'react-router-dom';
 import LoadingBox from '../components/LoadingBox';
 import MessageBox from '../components/MessageBox';
 import { Store } from '../Store';
-import { getError } from '../utils';
+import { convertDateTimeFormart, getError } from '../utils';
 import { toast } from 'react-toastify';
 import MpesaButton from '../components/MpesaButton';
 import MpesaPaymentModal from '../modal/MpesaPaymentModal';
@@ -101,17 +101,18 @@ export default function OrderScreen() {
 
   function onApprove(data, actions) {
     return actions.order.capture().then(async function (details) {
+      const paymentResult = details
       try {
         dispatch({ type: 'PAY_REQUEST' });
         const { data } = await axios.put(
           `/api/orders/${order._id}/pay`,
-          details,
+          paymentResult,
           {
             headers: { authorization: `Bearer ${userInfo.token}` },
           }
         );
         dispatch({ type: 'PAY_SUCCESS', payload: data });
-        toast.success('Order is paid');
+        toast.success('Order paid successfully');
       } catch (err) {
         dispatch({ type: 'PAY_FAIL', payload: getError(err) });
         toast.error(getError(err));
@@ -229,7 +230,7 @@ export default function OrderScreen() {
               </Card.Text>
               {order.isDelivered ? (
                 <MessageBox variant="success">
-                  Delivered at {order.deliveredAt}
+                  Delivered at {convertDateTimeFormart(order.deliveredAt)}
                 </MessageBox>
               ) : (
                 <MessageBox variant="danger">Not Delivered</MessageBox>
@@ -244,7 +245,7 @@ export default function OrderScreen() {
               </Card.Text>
               {order.isPaid ? (
                 <MessageBox variant="success">
-                  Paid at {order.paidAt}
+                  Paid at {convertDateTimeFormart(order.paidAt)}
                 </MessageBox>
               ) : (
                 <MessageBox variant="danger">Not Paid</MessageBox>
@@ -317,18 +318,18 @@ export default function OrderScreen() {
                       <LoadingBox />
                     ) : (
                       order.paymentMethod === "PayPal" ?
-                      <div>
-                        <PayPalButtons
-                          createOrder={createOrder}
-                          onApprove={onApprove}
-                          onError={onError}
-                        ></PayPalButtons>
-                      </div>
-                      : order.paymentMethod === "Mpesa" &&
-                      <div>
-                        <MpesaButton showModal={handleModal}/>
-                        <MpesaPaymentModal handleShow={show} handleCloseModal={handleModal} amount={order.totalPrice.toFixed(2)} />
-                      </div>
+                        <div>
+                          <PayPalButtons
+                            createOrder={createOrder}
+                            onApprove={onApprove}
+                            onError={onError}
+                          ></PayPalButtons>
+                        </div>
+                        : order.paymentMethod === "Mpesa" &&
+                        <div>
+                          <MpesaButton showModal={handleModal} />
+                          <MpesaPaymentModal handleShow={show} handleCloseModal={handleModal} amount={order.totalPrice.toFixed(0)} id={order?._id} />
+                        </div>
                     )}
                     {loadingPay && <LoadingBox></LoadingBox>}
                   </ListGroup.Item>
